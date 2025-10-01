@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, 'copilot/**' ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Run tests
+        run: go test ./testapp/... -v
+
+      - name: Build monitor
+        run: go build -o monitor ./cmd/monitor
+
+      - name: Run all tests
+        run: go test ./... -v

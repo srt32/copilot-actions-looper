@@ -101,7 +101,8 @@ go vet ./...
 .
 ├── .github/
 │   └── workflows/
-│       └── monitor-copilot-prs.yml  # Main workflow file
+│       ├── monitor-copilot-prs.yml  # Main workflow file
+│       └── ci.yml                   # CI workflow for testing
 ├── cmd/
 │   └── monitor/
 │       └── main.go                   # Application entry point
@@ -110,10 +111,22 @@ go vet ./...
 │       ├── client.go                 # GitHub API client
 │       ├── client_test.go            # Tests
 │       └── types.go                  # Data structures
+├── testapp/
+│   ├── math.go                       # Example code for testing
+│   └── math_test.go                  # Tests for example code
 ├── go.mod
 ├── go.sum
 └── README.md
 ```
+
+## Testing the Monitor
+
+This repository includes a CI workflow (`.github/workflows/ci.yml`) that tests both the monitor code and a simple test application. The test application (`testapp/`) contains a basic `Add` function that can be used to verify the monitoring system works correctly.
+
+To test the monitoring system:
+1. The CI workflow runs automatically on push and pull requests
+2. If tests fail, the monitor workflow should detect the failure and comment on Copilot PRs
+3. You can intentionally break the `testapp/math.go` function to test failure detection
 
 ## License
 
