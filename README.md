@@ -1,1 +1,120 @@
 # copilot-actions-looper
+
+A GitHub Actions-based system that monitors Copilot-created pull requests and automatically provides feedback on workflow successes and failures.
+
+## Features
+
+- 🤖 Automatically detects pull requests created by GitHub Copilot
+- 🔍 Monitors GitHub Actions workflows running on Copilot PRs
+- ✅ Posts success comments when workflows pass
+- ❌ Posts detailed failure comments with:
+  - Links to failed workflow runs
+  - Snippets of error logs
+  - @-mentions to prompt Copilot to fix issues
+- 🚀 Written primarily in Go with minimal bash usage
+- ✨ Easy to install - just copy one workflow file
+
+## Installation
+
+1. Copy the workflow file to your repository:
+   ```bash
+   mkdir -p .github/workflows
+   cp .github/workflows/monitor-copilot-prs.yml .github/workflows/
+   ```
+
+2. Ensure your repository has the required permissions:
+   - `pull-requests: write` - to post comments on PRs
+   - `actions: read` - to read workflow run information
+   - `checks: read` - to read check statuses
+
+3. Commit and push the workflow file to your repository.
+
+## How It Works
+
+1. When you assign an issue to Copilot, it creates a pull request (standard GitHub behavior)
+2. The monitor workflow listens for:
+   - New pull requests (to detect Copilot PRs)
+   - Workflow run completions (to check for failures)
+3. When a workflow run completes on a Copilot PR:
+   - **If successful**: Posts a success comment
+   - **If failed**: Posts a detailed failure comment with error logs and @-mentions Copilot
+
+## Example Comments
+
+### Success Comment
+```
+✅ **Workflow 'CI' completed successfully!**
+
+[View workflow run](https://github.com/owner/repo/actions/runs/123)
+```
+
+### Failure Comment
+```
+❌ **Workflow 'CI' failed**
+
+[View workflow run](https://github.com/owner/repo/actions/runs/123)
+
+**Failed Jobs:**
+- Build
+- Test
+
+**Error Logs:**
+
+**Job: Build**
+```
+ERROR: Build failed at step xyz
+```
+
+**Job: Test**
+```
+FAIL: TestSomething failed
+```
+
+---
+@copilot Please review the failure above and fix the issues to make the workflow pass.
+```
+
+## Development
+
+### Prerequisites
+- Go 1.21 or later
+
+### Building
+```bash
+go build -o monitor ./cmd/monitor
+```
+
+### Testing
+```bash
+go test ./... -v
+```
+
+### Code Formatting
+```bash
+go fmt ./...
+go vet ./...
+```
+
+## Project Structure
+
+```
+.
+├── .github/
+│   └── workflows/
+│       └── monitor-copilot-prs.yml  # Main workflow file
+├── cmd/
+│   └── monitor/
+│       └── main.go                   # Application entry point
+├── pkg/
+│   └── github/
+│       ├── client.go                 # GitHub API client
+│       ├── client_test.go            # Tests
+│       └── types.go                  # Data structures
+├── go.mod
+├── go.sum
+└── README.md
+```
+
+## License
+
+MIT
