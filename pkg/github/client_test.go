@@ -68,8 +68,8 @@ func TestIsCopilotPR(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Test the logic directly based on the isCopilotPR implementation
-			result := strings.Contains(strings.ToLower(tt.prData.User.Login), copilotUser)
+			// Test the logic using the isCopilotUser function
+			result := isCopilotUser(tt.prData.User.Login)
 
 			if result != tt.expected {
 				t.Errorf("Expected %v, got %v for user %s", tt.expected, result, tt.prData.User.Login)
@@ -227,5 +227,36 @@ func TestHandlePullRequest_Copilot(t *testing.T) {
 	err := client.HandlePullRequest(event)
 	if err != nil {
 		t.Errorf("Expected no error for Copilot PR, got %v", err)
+	}
+}
+
+func TestIsCopilotUser(t *testing.T) {
+	tests := []struct {
+		name     string
+		login    string
+		expected bool
+	}{
+		{name: "exact copilot", login: "copilot", expected: true},
+		{name: "exact github-copilot", login: "github-copilot", expected: true},
+		{name: "exact copilot-preview", login: "copilot-preview", expected: true},
+		{name: "copilot with [bot]", login: "copilot[bot]", expected: true},
+		{name: "github-copilot with [bot]", login: "github-copilot[bot]", expected: true},
+		{name: "copilot with dash", login: "copilot-workspace", expected: true},
+		{name: "github-copilot with dash", login: "github-copilot-test", expected: true},
+		{name: "uppercase copilot", login: "COPILOT", expected: true},
+		{name: "mixed case GitHub-Copilot", login: "GitHub-Copilot[bot]", expected: true},
+		{name: "regular user", login: "john-doe", expected: false},
+		{name: "dependabot", login: "dependabot", expected: false},
+		{name: "contains copilot but not match", login: "mycopilotbot", expected: false},
+		{name: "contains copilot in middle", login: "user-copilot-test", expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isCopilotUser(tt.login)
+			if result != tt.expected {
+				t.Errorf("isCopilotUser(%s) = %v, expected %v", tt.login, result, tt.expected)
+			}
+		})
 	}
 }

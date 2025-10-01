@@ -11,8 +11,13 @@ import (
 
 const (
 	githubAPIURL = "https://api.github.com"
-	copilotUser  = "copilot"
 )
+
+var copilotBotPatterns = []string{
+	"copilot",
+	"github-copilot",
+	"copilot-preview",
+}
 
 // Client handles interactions with the GitHub API
 type Client struct {
@@ -79,7 +84,7 @@ func (c *Client) HandleWorkflowRun(event *WorkflowRunEvent) error {
 // HandlePullRequest processes a pull_request event
 func (c *Client) HandlePullRequest(event *PullRequestEvent) error {
 	// Check if the PR is from Copilot
-	if !strings.Contains(strings.ToLower(event.PullRequest.User.Login), copilotUser) {
+	if !isCopilotUser(event.PullRequest.User.Login) {
 		fmt.Printf("PR #%d is not from Copilot (user: %s, type: %s), skipping\n",
 			event.PullRequest.Number, event.PullRequest.User.Login, event.PullRequest.User.Type)
 		return nil
@@ -117,8 +122,23 @@ func (c *Client) isCopilotPR(prNumber int) (bool, error) {
 		return false, err
 	}
 
-	// Check if the PR author contains "copilot" in the login
-	return strings.Contains(strings.ToLower(pr.User.Login), copilotUser), nil
+	return isCopilotUser(pr.User.Login), nil
+}
+
+// isCopilotUser checks if a username matches known Copilot bot patterns
+func isCopilotUser(login string) bool {
+	lowerLogin := strings.ToLower(login)
+
+	// Check for exact matches or known patterns
+	for _, pattern := range copilotBotPatterns {
+		if lowerLogin == pattern ||
+			lowerLogin == pattern+"[bot]" ||
+			strings.HasPrefix(lowerLogin, pattern+"-") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // handleFailedWorkflow handles a failed workflow run
