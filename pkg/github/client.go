@@ -37,44 +37,60 @@ func NewClient(token, repository string) *Client {
 
 // HandleWorkflowRun processes a workflow_run event
 func (c *Client) HandleWorkflowRun(event *WorkflowRunEvent) error {
+	fmt.Printf("\n--- Processing Workflow Run Event ---\n")
+	fmt.Printf("Workflow Name: %s\n", event.WorkflowRun.Name)
+	fmt.Printf("Workflow Run ID: %d\n", event.WorkflowRun.ID)
+	fmt.Printf("Status: %s\n", event.WorkflowRun.Status)
+	fmt.Printf("Conclusion: %s\n", event.WorkflowRun.Conclusion)
+	fmt.Printf("Branch: %s\n", event.WorkflowRun.HeadBranch)
+	fmt.Printf("Workflow URL: %s\n", event.WorkflowRun.HTMLURL)
+
 	// Only process completed workflow runs
 	if event.WorkflowRun.Status != "completed" {
-		fmt.Printf("Workflow run %d is not completed (status: %s), skipping\n",
+		fmt.Printf("⏸️  Workflow run %d is not completed (status: %s), skipping\n",
 			event.WorkflowRun.ID, event.WorkflowRun.Status)
 		return nil
 	}
 
 	// Check if there are associated pull requests
+	fmt.Printf("Associated PRs: %d\n", len(event.WorkflowRun.PullRequests))
 	if len(event.WorkflowRun.PullRequests) == 0 {
-		fmt.Printf("Workflow run %d has no associated pull requests, skipping\n",
+		fmt.Printf("❌ Workflow run %d has no associated pull requests, skipping\n",
 			event.WorkflowRun.ID)
 		return nil
 	}
 
 	// Check each PR to see if it's from Copilot
 	for _, pr := range event.WorkflowRun.PullRequests {
+		fmt.Printf("\nChecking PR #%d...\n", pr.Number)
+		fmt.Printf("Fetching PR details from GitHub API...\n")
 		isCopilotPR, err := c.isCopilotPR(pr.Number)
 		if err != nil {
-			fmt.Printf("Error checking if PR #%d is from Copilot: %v\n", pr.Number, err)
+			fmt.Printf("❌ Error checking if PR #%d is from Copilot: %v\n", pr.Number, err)
 			continue
 		}
 
 		if !isCopilotPR {
-			fmt.Printf("PR #%d is not from Copilot, skipping\n", pr.Number)
+			fmt.Printf("❌ PR #%d is not from Copilot, skipping\n", pr.Number)
 			continue
 		}
 
-		fmt.Printf("Processing Copilot PR #%d for workflow run %d\n", pr.Number, event.WorkflowRun.ID)
+		fmt.Printf("✅ Confirmed Copilot PR #%d\n", pr.Number)
+		fmt.Printf("Processing workflow conclusion: %s\n", event.WorkflowRun.Conclusion)
 
 		// Handle based on workflow conclusion
 		if event.WorkflowRun.Conclusion == "failure" {
+			fmt.Printf("🔴 Handling failed workflow...\n")
 			if err := c.handleFailedWorkflow(pr.Number, &event.WorkflowRun); err != nil {
 				return fmt.Errorf("failed to handle failed workflow: %w", err)
 			}
 		} else if event.WorkflowRun.Conclusion == "success" {
+			fmt.Printf("🟢 Handling successful workflow...\n")
 			if err := c.handleSuccessfulWorkflow(pr.Number, &event.WorkflowRun); err != nil {
 				return fmt.Errorf("failed to handle successful workflow: %w", err)
 			}
+		} else {
+			fmt.Printf("ℹ️  Workflow conclusion '%s' - no action needed\n", event.WorkflowRun.Conclusion)
 		}
 	}
 
@@ -83,20 +99,31 @@ func (c *Client) HandleWorkflowRun(event *WorkflowRunEvent) error {
 
 // HandlePullRequest processes a pull_request event
 func (c *Client) HandlePullRequest(event *PullRequestEvent) error {
+	fmt.Printf("\n--- Processing Pull Request Event ---\n")
+	fmt.Printf("PR Number: #%d\n", event.PullRequest.Number)
+	fmt.Printf("PR Title: %s\n", event.PullRequest.Title)
+	fmt.Printf("PR Author: %s (type: %s)\n", event.PullRequest.User.Login, event.PullRequest.User.Type)
+	fmt.Printf("PR URL: %s\n", event.PullRequest.HTMLURL)
+	fmt.Printf("Base Branch: %s\n", event.PullRequest.Base.Ref)
+	fmt.Printf("Head Branch: %s\n", event.PullRequest.Head.Ref)
+
 	// Check if the PR is from Copilot
+	fmt.Printf("Checking if PR is from Copilot...\n")
 	if !isCopilotUser(event.PullRequest.User.Login) {
-		fmt.Printf("PR #%d is not from Copilot (user: %s, type: %s), skipping\n",
+		fmt.Printf("❌ PR #%d is NOT from Copilot (user: %s, type: %s), skipping\n",
 			event.PullRequest.Number, event.PullRequest.User.Login, event.PullRequest.User.Type)
 		return nil
 	}
 
-	fmt.Printf("Detected Copilot PR #%d: %s\n", event.PullRequest.Number, event.PullRequest.Title)
+	fmt.Printf("✅ Detected Copilot PR #%d: %s\n", event.PullRequest.Number, event.PullRequest.Title)
+	fmt.Printf("This PR will be monitored for workflow runs\n")
 	return nil
 }
 
 // isCopilotPR checks if a PR was created by Copilot
 func (c *Client) isCopilotPR(prNumber int) (bool, error) {
 	url := fmt.Sprintf("%s/repos/%s/pulls/%d", githubAPIURL, c.repository, prNumber)
+	fmt.Printf("  → API call: GET %s\n", url)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -112,6 +139,7 @@ func (c *Client) isCopilotPR(prNumber int) (bool, error) {
 	}
 	defer resp.Body.Close()
 
+	fmt.Printf("  → API response: %d\n", resp.StatusCode)
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return false, fmt.Errorf("GitHub API error: %d - %s", resp.StatusCode, string(body))
@@ -122,7 +150,9 @@ func (c *Client) isCopilotPR(prNumber int) (bool, error) {
 		return false, err
 	}
 
-	return isCopilotUser(pr.User.Login), nil
+	isCopilot := isCopilotUser(pr.User.Login)
+	fmt.Printf("  → User '%s' is Copilot: %v\n", pr.User.Login, isCopilot)
+	return isCopilot, nil
 }
 
 // isCopilotUser checks if a username matches known Copilot bot patterns
@@ -143,19 +173,26 @@ func isCopilotUser(login string) bool {
 
 // handleFailedWorkflow handles a failed workflow run
 func (c *Client) handleFailedWorkflow(prNumber int, workflow *WorkflowRun) error {
-	fmt.Printf("Workflow '%s' failed for PR #%d\n", workflow.Name, prNumber)
+	fmt.Printf("\n--- Handling Failed Workflow ---\n")
+	fmt.Printf("Workflow: '%s'\n", workflow.Name)
+	fmt.Printf("PR: #%d\n", prNumber)
 
 	// Get failed jobs
+	fmt.Printf("Fetching workflow jobs...\n")
 	jobs, err := c.getWorkflowJobs(workflow.ID)
 	if err != nil {
 		return fmt.Errorf("failed to get workflow jobs: %w", err)
 	}
+	fmt.Printf("Found %d total jobs\n", len(jobs))
 
 	// Find failed jobs
 	var failedJobs []Job
 	for _, job := range jobs {
 		if job.Conclusion == "failure" {
 			failedJobs = append(failedJobs, job)
+			fmt.Printf("  ❌ Failed job: %s (ID: %d)\n", job.Name, job.ID)
+		} else {
+			fmt.Printf("  ✅ Job: %s - %s\n", job.Name, job.Conclusion)
 		}
 	}
 
@@ -165,48 +202,63 @@ func (c *Client) handleFailedWorkflow(prNumber int, workflow *WorkflowRun) error
 	}
 
 	// Get logs for failed jobs
+	fmt.Printf("\nFetching logs for %d failed job(s)...\n", len(failedJobs))
 	var logSnippets []string
 	for _, job := range failedJobs {
+		fmt.Printf("  → Fetching logs for job '%s' (ID: %d)...\n", job.Name, job.ID)
 		logs, err := c.getJobLogs(job.ID)
 		if err != nil {
-			fmt.Printf("Warning: failed to get logs for job %d: %v\n", job.ID, err)
+			fmt.Printf("    ⚠️  Warning: failed to get logs for job %d: %v\n", job.ID, err)
 			continue
 		}
+		fmt.Printf("    → Retrieved %d bytes of logs\n", len(logs))
 
 		snippet := extractErrorSnippet(logs, 20)
 		if snippet != "" {
+			fmt.Printf("    → Extracted error snippet (%d chars)\n", len(snippet))
 			logSnippets = append(logSnippets, fmt.Sprintf("**Job: %s**\n```\n%s\n```", job.Name, snippet))
 		}
 	}
 
 	// Create comment
+	fmt.Printf("\nBuilding failure comment...\n")
 	comment := c.buildFailureComment(workflow, failedJobs, logSnippets)
+	fmt.Printf("Comment length: %d characters\n", len(comment))
+
+	fmt.Printf("Posting comment to PR #%d...\n", prNumber)
 	if err := c.createComment(prNumber, comment); err != nil {
 		return fmt.Errorf("failed to create comment: %w", err)
 	}
 
-	fmt.Printf("Posted failure comment to PR #%d\n", prNumber)
+	fmt.Printf("✅ Successfully posted failure comment to PR #%d\n", prNumber)
 	return nil
 }
 
 // handleSuccessfulWorkflow handles a successful workflow run
 func (c *Client) handleSuccessfulWorkflow(prNumber int, workflow *WorkflowRun) error {
-	fmt.Printf("Workflow '%s' succeeded for PR #%d\n", workflow.Name, prNumber)
+	fmt.Printf("\n--- Handling Successful Workflow ---\n")
+	fmt.Printf("Workflow: '%s'\n", workflow.Name)
+	fmt.Printf("PR: #%d\n", prNumber)
 
 	comment := fmt.Sprintf("✅ **Workflow '%s' completed successfully!**\n\n[View workflow run](%s)",
 		workflow.Name, workflow.HTMLURL)
 
+	fmt.Printf("Building success comment...\n")
+	fmt.Printf("Comment length: %d characters\n", len(comment))
+
+	fmt.Printf("Posting comment to PR #%d...\n", prNumber)
 	if err := c.createComment(prNumber, comment); err != nil {
 		return fmt.Errorf("failed to create comment: %w", err)
 	}
 
-	fmt.Printf("Posted success comment to PR #%d\n", prNumber)
+	fmt.Printf("✅ Successfully posted success comment to PR #%d\n", prNumber)
 	return nil
 }
 
 // getWorkflowJobs retrieves all jobs for a workflow run
 func (c *Client) getWorkflowJobs(runID int64) ([]Job, error) {
 	url := fmt.Sprintf("%s/repos/%s/actions/runs/%d/jobs", githubAPIURL, c.repository, runID)
+	fmt.Printf("  → API call: GET %s\n", url)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -222,6 +274,7 @@ func (c *Client) getWorkflowJobs(runID int64) ([]Job, error) {
 	}
 	defer resp.Body.Close()
 
+	fmt.Printf("  → API response: %d\n", resp.StatusCode)
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("GitHub API error: %d - %s", resp.StatusCode, string(body))
@@ -238,6 +291,7 @@ func (c *Client) getWorkflowJobs(runID int64) ([]Job, error) {
 // getJobLogs retrieves logs for a specific job
 func (c *Client) getJobLogs(jobID int64) (string, error) {
 	url := fmt.Sprintf("%s/repos/%s/actions/jobs/%d/logs", githubAPIURL, c.repository, jobID)
+	fmt.Printf("    → API call: GET %s\n", url)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -253,6 +307,7 @@ func (c *Client) getJobLogs(jobID int64) (string, error) {
 	}
 	defer resp.Body.Close()
 
+	fmt.Printf("    → API response: %d\n", resp.StatusCode)
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("GitHub API error: %d - %s", resp.StatusCode, string(body))
@@ -269,6 +324,7 @@ func (c *Client) getJobLogs(jobID int64) (string, error) {
 // createComment creates a comment on a pull request
 func (c *Client) createComment(prNumber int, body string) error {
 	url := fmt.Sprintf("%s/repos/%s/issues/%d/comments", githubAPIURL, c.repository, prNumber)
+	fmt.Printf("  → API call: POST %s\n", url)
 
 	comment := Comment{Body: body}
 	jsonData, err := json.Marshal(comment)
@@ -291,6 +347,7 @@ func (c *Client) createComment(prNumber int, body string) error {
 	}
 	defer resp.Body.Close()
 
+	fmt.Printf("  → API response: %d\n", resp.StatusCode)
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("GitHub API error: %d - %s", resp.StatusCode, string(body))
