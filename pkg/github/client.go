@@ -79,8 +79,7 @@ func (c *Client) HandleWorkflowRun(event *WorkflowRunEvent) error {
 // HandlePullRequest processes a pull_request event
 func (c *Client) HandlePullRequest(event *PullRequestEvent) error {
 	// Check if the PR is from Copilot
-	if !strings.Contains(strings.ToLower(event.PullRequest.User.Login), copilotUser) &&
-		event.PullRequest.User.Type != "Bot" {
+	if !strings.Contains(strings.ToLower(event.PullRequest.User.Login), copilotUser) {
 		fmt.Printf("PR #%d is not from Copilot (user: %s, type: %s), skipping\n",
 			event.PullRequest.Number, event.PullRequest.User.Login, event.PullRequest.User.Type)
 		return nil
@@ -118,8 +117,8 @@ func (c *Client) isCopilotPR(prNumber int) (bool, error) {
 		return false, err
 	}
 
-	// Check if the PR author is Copilot or contains "copilot" in the login
-	return strings.Contains(strings.ToLower(pr.User.Login), copilotUser) || pr.User.Type == "Bot", nil
+	// Check if the PR author contains "copilot" in the login
+	return strings.Contains(strings.ToLower(pr.User.Login), copilotUser), nil
 }
 
 // handleFailedWorkflow handles a failed workflow run
