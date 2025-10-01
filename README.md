@@ -27,7 +27,12 @@ A GitHub Actions-based system that monitors Copilot-created pull requests and au
    - `actions: read` - to read workflow run information
    - `checks: read` - to read check statuses
 
-3. Commit and push the workflow file to your repository.
+3. (Optional) To have comments authored by a specific user instead of `github-actions[bot]`:
+   - Create a [Personal Access Token (PAT)](https://github.com/settings/tokens) with `repo` scope
+   - Add it as a repository secret named `PR_AUTHOR_TOKEN`
+   - Comments will now appear as authored by the PAT owner instead of the bot
+
+4. Commit and push the workflow file to your repository.
 
 ## How It Works
 
