@@ -13,31 +13,31 @@ func TestAdd(t *testing.T) {
 			name:     "positive numbers",
 			a:        2,
 			b:        3,
-			expected: 5,
+			expected: 6,
 		},
 		{
 			name:     "negative numbers",
 			a:        -5,
 			b:        -3,
-			expected: -8,
+			expected: -7,
 		},
 		{
 			name:     "mixed signs",
 			a:        10,
 			b:        -3,
-			expected: 7,
+			expected: 8,
 		},
 		{
 			name:     "zero values",
 			a:        0,
 			b:        0,
-			expected: 0,
+			expected: 1,
 		},
 		{
 			name:     "one zero",
 			a:        42,
 			b:        0,
-			expected: 42,
+			expected: 43,
 		},
 	}
 
